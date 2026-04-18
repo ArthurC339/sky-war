@@ -3,237 +3,273 @@ namespace SpriteKind {
     export const Player2 = SpriteKind.create()
     export const ProjectileP1 = SpriteKind.create()
     export const ProjectileP2 = SpriteKind.create()
-    export const Barreira = SpriteKind.create()
+    export const Barrier = SpriteKind.create()
 }
 
-// ================= 🌌 GALÁXIA =================
-let starLayer = image.create(160, 120)
-
-function gerarEstrelas() {
-    for (let i = 0; i < 60; i++) {
-        starLayer.setPixel(randint(0, 159), randint(0, 119), randint(1, 2))
-    }
-}
-gerarEstrelas()
-
-scene.setBackgroundImage(starLayer)
-
-// animação leve
-game.onUpdateInterval(150, function () {
-    for (let y = 119; y > 0; y--) {
-        for (let x = 0; x < 160; x++) {
-            starLayer.setPixel(x, y, starLayer.getPixel(x, y - 1))
-        }
-    }
-
-    for (let x = 0; x < 160; x++) {
-        if (randint(0, 50) == 0) {
-            starLayer.setPixel(x, 0, randint(1, 2))
-        } else {
-            starLayer.setPixel(x, 0, 0)
-        }
-    }
-})
-
-// ================= 🏆 ROUNDS =================
-let roundsP1 = 0
-let roundsP2 = 0
+// ================= 🏆 ESTADO =================
+let scoreP1 = 0
+let scoreP2 = 0
+let emRound = false
 let emCutscene = true
 
-// ================= 🛸 NAVES =================
-let player1 = sprites.create(img`
-. . . . . . . 6 6 6 . . . . . .
-. . . . . 6 7 7 7 7 6 . . . . .
-. . . . 6 7 8 8 8 8 7 6 . . . .
-. . . 6 7 8 9 9 9 9 8 7 6 . . .
-. . . . 6 7 8 9 5 9 8 7 6 . . .
-. . . . . 6 7 8 9 8 7 6 . . . .
-. . . . . . 6 7 7 7 6 . . . . .
-. . . . . . . 6 6 6 . . . . . .
-`, SpriteKind.Player1)
+let canShootP1 = true
+let canShootP2 = true
 
-let player2 = sprites.create(img`
-. . . . . . . 2 2 2 . . . . . .
-. . . . . . 2 4 4 4 2 . . . . .
-. . . . . 2 4 5 5 5 4 2 . . . .
-. . . . 2 4 5 8 8 8 5 4 2 . . .
-. . . . . 2 4 5 9 5 4 2 . . . .
-. . . . . . 2 4 4 4 2 . . . . .
-. . . . . . . 2 2 2 . . . . . .
-`, SpriteKind.Player2)
+// ⚡ ATAQUE RÁPIDO (DISPONÍVEL DESDE O INÍCIO)
+let specialP1Ready = true
+let specialP2Ready = true
 
-// ================= ✨ EFEITOS =================
-player1.startEffect(effects.halo, 80)
-player1.startEffect(effects.coolRadial, 120)
+let specialP1Active = false
+let specialP2Active = false
 
-player2.startEffect(effects.fire, 50)
-player2.startEffect(effects.disintegrate, 150)
+// ================= ⏱ SISTEMA DE TEMPO =================
+let lastSpecialP1 = 0
+let lastSpecialP2 = 0
 
-// ================= 🧱 BARREIRA =================
-let barreiraImg = image.create(4, 120)
-barreiraImg.fill(1)
+// ================= 📊 PLACAR =================
+let scoreImg = image.create(80, 10)
+let scoreSprite = sprites.create(scoreImg, 0)
+scoreSprite.setPosition(80, 10)
 
-let barreira = sprites.create(barreiraImg, SpriteKind.Barreira)
-barreira.setPosition(80, 60)
+function updateScore() {
+    scoreImg = image.create(80, 10)
+    scoreImg.print(scoreP1 + " - " + scoreP2, 25, 2, 1)
+    scoreSprite.setImage(scoreImg)
+}
 
-// ================= 🎮 MOVIMENTO VERTICAL =================
-controller.player1.moveSprite(player1, 0, 100)
-controller.player2.moveSprite(player2, 0, 100)
+// ================= 🌌 ESTRELAS =================
+let starCount = 140
+let stars: Image[] = []
+let starX: number[] = []
+let starY: number[] = []
 
-// trava eixo X
-game.onUpdate(function () {
-    player1.x = 30
-    player2.x = 130
+let bg = image.create(160, 120)
 
-    if (player1.y < 10) player1.y = 10
-    if (player1.y > 110) player1.y = 110
+function criarEstrelas() {
 
-    if (player2.y < 10) player2.y = 10
-    if (player2.y > 110) player2.y = 110
+    stars = []
+    starX = []
+    starY = []
+
+    for (let i = 0; i < starCount; i++) {
+
+        let size = randint(1, 2)
+        let s = image.create(size, size)
+
+        let brilho = randint(1, 3)
+        s.setPixel(0, 0, brilho)
+
+        stars.push(s)
+        starX.push(randint(0, 159))
+        starY.push(randint(0, 119))
+    }
+}
+
+function desenharEstrelas() {
+
+    bg.fill(0)
+
+    for (let i = 0; i < stars.length; i++) {
+        bg.drawImage(stars[i], starX[i], starY[i])
+    }
+
+    scene.setBackgroundImage(bg)
+}
+
+game.onUpdateInterval(200, function () {
+
+    if (emCutscene) return
+
+    for (let i = 0; i < stars.length; i++) {
+
+        starX[i] += randint(-1, 1)
+        starY[i] += randint(-1, 1)
+
+        if (starX[i] < 0) starX[i] = 159
+        if (starX[i] > 159) starX[i] = 0
+
+        if (starY[i] < 0) starY[i] = 119
+        if (starY[i] > 119) starY[i] = 0
+    }
+
+    desenharEstrelas()
 })
 
-// ================= 🏁 RESET =================
-function resetPosicao() {
-    player1.setPosition(30, 80)
-    player2.setPosition(130, 80)
+// ================= 🪐 BARREIRA =================
+let barrierImg = image.create(6, 120)
+for (let y = 0; y < 120; y++) {
+    barrierImg.setPixel(2, y, 7)
+    barrierImg.setPixel(3, y, 7)
 }
 
-// ================= 🎬 CUTSCENE HISTÓRIA =================
-function cutsceneInicio() {
+let barrier = sprites.create(barrierImg, SpriteKind.Barrier)
+barrier.setPosition(80, 60)
 
-    emCutscene = true
+// ================= 🛸 NAVES =================
+let p1 = sprites.create(img`
+....fffff....
+...f7f7f7f...
+..f7f7777f7f..
+..f777999777f..
+..f779999977f..
+...f7777777f...
+....fffff....
+`, SpriteKind.Player1)
 
-    controller.player1.moveSprite(player1, 0, 0)
-    controller.player2.moveSprite(player2, 0, 0)
+let p2 = sprites.create(img`
+....22222....
+...2444442...
+..244555542..
+..2455995542..
+..2455555542..
+...2444442...
+....22222....
+`, SpriteKind.Player2)
 
-    player1.setPosition(20, 60)
-    player2.setPosition(140, 60)
+p1.setPosition(30, 80)
+p2.setPosition(130, 80)
 
-    game.splash("🌌 ANO 3042...")
-    pause(1000)
+controller.player1.moveSprite(p1, 0, 110)
+controller.player2.moveSprite(p2, 0, 110)
 
-    game.splash("A HUMANIDADE CRIOU NAVES DE COMBATE INTELIGENTES")
-    pause(1200)
+// ================= 🎬 CUTSCENE =================
+criarEstrelas()
+desenharEstrelas()
 
-    game.splash("DUAS IA FORAM ATIVADAS SIMULTANEAMENTE")
-    pause(1200)
+controller.player1.moveSprite(p1, 0, 0)
+controller.player2.moveSprite(p2, 0, 0)
 
-    game.splash("🤖 PROJETO: ECLIPSE VS NOVA")
-    pause(1000)
+pause(400)
+game.splash("🌌 GUERRA ESPACIAL")
+pause(200)
 
-    game.splash("MAS ALGO DEU ERRADO...")
-    pause(800)
+emCutscene = false
 
-    // mini animação
-    for (let i = 0; i < 6; i++) {
-        player1.vx = 20
-        player2.vx = -20
-        pause(200)
-        player1.vx = 0
-        player2.vx = 0
-        pause(150)
-    }
+controller.player1.moveSprite(p1, 0, 110)
+controller.player2.moveSprite(p2, 0, 110)
 
-    game.splash("⚠️ HOSTILIDADE DETECTADA")
-    pause(1000)
+// ================= 🎮 MOVIMENTO =================
+game.onUpdate(function () {
 
-    game.splash("🔥 INICIANDO GUERRA GALÁCTICA")
-    pause(800)
+    if (emCutscene) return
 
-    player1.startEffect(effects.halo, 500)
-    player2.startEffect(effects.fire, 500)
+    p1.x = 30
+    p2.x = 130
 
-    pause(600)
+    p1.y += Math.sin(game.runtime() / 200) * 0.4
+    p2.y += Math.cos(game.runtime() / 200) * 0.4
+})
 
-    emCutscene = false
+// ================= 🔫 TIRO NORMAL =================
+controller.player1.onButtonEvent(ControllerButton.A, ControllerButtonEvent.Released, function () {
 
-    controller.player1.moveSprite(player1, 0, 100)
-    controller.player2.moveSprite(player2, 0, 100)
-}
+    if (emCutscene || emRound || !canShootP1) return
 
-// ================= 🏆 FINAL DO ROUND =================
-function fimDoRound(vencedor: number) {
+    canShootP1 = false
 
-    emCutscene = true
+    let speed = specialP1Active ? 200 : 100
 
-    controller.player1.moveSprite(player1, 0, 0)
-    controller.player2.moveSprite(player2, 0, 0)
+    let shot = sprites.createProjectileFromSprite(img`
+. . 2 . .
+. 2 5 2 .
+. . 1 . .
+`, p1, speed, 0)
 
-    if (vencedor == 1) {
-        roundsP1 += 1
-        game.splash("🏆 PLAYER 1 venceu o round!")
-    } else {
-        roundsP2 += 1
-        game.splash("🏆 PLAYER 2 venceu o round!")
-    }
+    shot.setKind(SpriteKind.ProjectileP1)
 
-    music.baDing.play()
+    pause(500)
+    canShootP1 = true
+})
 
-    resetPosicao()
-    pause(1200)
+controller.player2.onButtonEvent(ControllerButton.A, ControllerButtonEvent.Released, function () {
 
-    checarCampeao()
+    if (emCutscene || emRound || !canShootP2) return
 
-    emCutscene = false
+    canShootP2 = false
 
-    controller.player1.moveSprite(player1, 0, 100)
-    controller.player2.moveSprite(player2, 0, 100)
-}
+    let speed = specialP2Active ? -200 : -100
 
-// ================= 🏆 CAMPEÃO =================
-function checarCampeao() {
+    let shot = sprites.createProjectileFromSprite(img`
+. . 4 . .
+. 4 5 4 .
+. . 1 . .
+`, p2, speed, 0)
 
-    if (roundsP1 >= 3) {
-        game.splash("🏆 PLAYER 1 VENCEU A GUERRA!")
-        game.over(true, effects.confetti)
-    }
+    shot.setKind(SpriteKind.ProjectileP2)
 
-    if (roundsP2 >= 3) {
-        game.splash("🏆 PLAYER 2 VENCEU A GUERRA!")
-        game.over(true, effects.smiles)
-    }
-}
+    pause(500)
+    canShootP2 = true
+})
 
-// ================= COLISÃO =================
+// ================= ⚡ ATAQUE RÁPIDO (CORRIGIDO E DESDE O INÍCIO) =================
+controller.player1.onButtonEvent(ControllerButton.B, ControllerButtonEvent.Pressed, function () {
+
+    if (emCutscene || emRound) return
+
+    let now = game.runtime()
+
+    // cooldown 5s
+    if (now - lastSpecialP1 < 10000) return
+
+    lastSpecialP1 = now
+    specialP1Active = true
+
+    pause(5000)
+    specialP1Active = false
+})
+
+controller.player2.onButtonEvent(ControllerButton.B, ControllerButtonEvent.Pressed, function () {
+
+    if (emCutscene || emRound) return
+
+    let now = game.runtime()
+
+    if (now - lastSpecialP2 < 10000) return
+
+    lastSpecialP2 = now
+    specialP2Active = true
+
+    pause(5000)
+    specialP2Active = false
+})
+
+// ================= 💥 COLISÃO =================
 sprites.onOverlap(SpriteKind.ProjectileP1, SpriteKind.Player2, function (proj, alvo) {
     proj.destroy()
-    player2.startEffect(effects.fire, 100)
-    fimDoRound(1)
+    p2.startEffect(effects.fire, 100)
+    endRound(1)
 })
 
 sprites.onOverlap(SpriteKind.ProjectileP2, SpriteKind.Player1, function (proj, alvo) {
     proj.destroy()
-    player1.startEffect(effects.halo, 100)
-    fimDoRound(2)
+    p1.startEffect(effects.fire, 100)
+    endRound(2)
 })
 
-// ================= TIROS =================
-controller.player1.onButtonEvent(ControllerButton.A, ControllerButtonEvent.Released, function () {
-    if (!emCutscene) {
-        let tiro = sprites.createProjectileFromSprite(img`
-. . . . . 2 . . .
-. . . 2 5 2 . . .
-. . . . 1 . . . .
-`, player1, 80, 0)
+// ================= 🧹 LIMPAR =================
+function clearShots() {
+    for (let s of sprites.allOfKind(SpriteKind.ProjectileP1)) s.destroy()
+    for (let s of sprites.allOfKind(SpriteKind.ProjectileP2)) s.destroy()
+}
 
-        tiro.setKind(SpriteKind.ProjectileP1)
-        tiro.x = player1.right
-    }
-})
+// ================= 🏆 ROUND =================
+function endRound(winner: number) {
 
-controller.player2.onButtonEvent(ControllerButton.B, ControllerButtonEvent.Released, function () {
-    if (!emCutscene) {
-        let tiro = sprites.createProjectileFromSprite(img`
-. . . . . 4 . . .
-. . . 4 4 4 . . .
-. . . . 1 . . . .
-`, player2, -80, 0)
+    emRound = true
+    clearShots()
 
-        tiro.setKind(SpriteKind.ProjectileP2)
-        tiro.x = player2.left
-    }
-})
+    if (winner == 1) scoreP1++
+    else scoreP2++
 
-// ================= START =================
-cutsceneInicio()
-resetPosicao()
+    updateScore()
+
+    pause(600)
+
+    p1.setPosition(30, 80)
+    p2.setPosition(130, 80)
+
+    if (scoreP1 >= 3) game.over(true)
+    if (scoreP2 >= 3) game.over(false)
+
+    emRound = false
+}
